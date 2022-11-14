@@ -41,14 +41,14 @@ class HP45(serial.Serial):
         self.ser = serial.Serial() #make an instance of serial connection
         self.ser.baudrate = 115200 #set baudrate
         self.ser.timeout = 0 #set timeout to 0, non blocking mode
-        
+
         #status flags
         self.connection_state = 0 #whether connected or not
         self.started_state = 0 
         self.ok_state = 1 #whether the response of serial has been OK or not
         self.error_state = 0 #error of system
         self.inkjet_version = 0.0 #version of grbl
-        
+
         self.send_get_status = 0 #whether to fetch a value
         self.send_status_buffer = "" #buffer for status
         self.status_state = 0 #which status to fetch
@@ -61,26 +61,26 @@ class HP45(serial.Serial):
         self.inkjet_readleft = 0 #the amount of read lines left
         self.inkjet_dpi = 600 #the DPI of the printhead
         self.inkjet_density = 100 #the density of the printhead
-        
+
         self.inkjet_warning = 0
         self.inkjet_warning_message = ["Head temp high"]
         self.inkjet_error = 0
         self.inkjet_error_message = ["12V Bus low", "12V Bus high", "Vhead Bus low", "Vhead Bus high", "No printhead", "Head temp too high", "Adrs not working", "Dummy1 not rising", "Dummy1 not faling", "Dummy2 not rising", "Dummy2 not falling"]
-        
-        
+
+
         self.code_buffer = []
         self.code_buffer_left = 0
-        
+
         self.window_output_buffer = "" #holds a buffer of what was sent out
         self.window_input_buffer = "" #holds a buffer of what was received
-        
+
         self.Serial_input_file = open("Serial_input_log.txt","w") 
         self.Serial_input_file.close()
         self.Serial_input_file = open("Serial_input_log.txt","r+") 
         self.Serial_input_file.truncate(0)
         self.Serial_input_file.write("Serial input log file") 
         self.Serial_input_file.close() 
-        
+
         self.Serial_output_file = open("Serial_output_log.txt","w") 
         self.Serial_output_file.close()
         self.Serial_output_file = open("Serial_output_log.txt","r+") 
@@ -92,7 +92,7 @@ class HP45(serial.Serial):
         """Attempt to connect to the HP45 controller"""
         self.com_port_raw = str(serial_port) #get value from set_com
         self.ser.port = self.com_port_raw #set com port
-        
+
         if (self.connection_state == 0): #if not yet connected
             #print("attempting to open: " + self.com_port_raw)
             self.temp_com_success = 0
@@ -103,12 +103,12 @@ class HP45(serial.Serial):
                 #print ("Unable to open connection")
                 nothing = 0
             if (self.temp_com_success == 1):
-                print(self.com_port_raw + " for HP45 opened")
+                print(f"{self.com_port_raw} for HP45 opened")
                 self.connection_state = 1
-                self.started_state = 0 
-                self.ok_state = 1 
-                self.error_state = 0 
-                self.homed_state = 0 
+                self.started_state = 0
+                self.ok_state = 1
+                self.error_state = 0
+                self.homed_state = 0
                 self._stop_event = threading.Event()
                 self.update_thread = threading.Thread(target=self.Update)
                 self.update_thread.start()
@@ -146,17 +146,17 @@ class HP45(serial.Serial):
                 read_buffer += temp_read
                 #print(read_buffer)
                 #add line to read buffer
-                
+
             temp_decode = read_buffer.partition('\n') #check for EOL conditions
             if (temp_decode[1] == '\n'): #if '\n' 
                 read_buffer = temp_decode[2] #write remainder to buffer
                 read_line = str(temp_decode[0])
-                
+
                 #write to log file for now <-------------------------------------------
                 #self.Serial_input_file = open("Serial_input_log.txt","w") 
                 #self.Serial_input_file.write(read_line) 
                 #self.Serial_input_file.close() 
-                
+
                 #read_line = read_line.lower() #make all lower case for checking #(DONT!!!)
                 read_line = read_line.rstrip() #remove carriage return
                 #print("reading line: " + str(read_line)) 
@@ -169,27 +169,22 @@ class HP45(serial.Serial):
                     read_line = read_line.partition(':') #split at :
                     read_line = read_line[2] #get end
                     temp_return_string = B64.B64FromSingle(read_line)
-                    self.inkjet_temperature = float(temp_return_string)
-                    self.inkjet_temperature /= 10.0 #get whole degrees
+                    self.inkjet_temperature = float(temp_return_string) / 10.0
                 elif (read_line.startswith('GEP:')):
                     #print("getting position")
                     read_line = read_line.partition(':') #split at :
                     read_line = read_line[2] #get end
                     #print("Decoding: " + read_line)
                     temp_return_string = B64.B64FromSingle(read_line)
-                    #print("position found: " + str(temp_return_string))
-                    self.inkjet_x_pos = float(temp_return_string)
-                    self.inkjet_x_pos /= 1000.0 #get millimeters
+                    self.inkjet_x_pos = float(temp_return_string) / 1000.0
                 elif (read_line.startswith('GVP:')):
                     #print("getting position")
                     read_line = read_line.partition(':') #split at :
                     read_line = read_line[2] #get end
                     #print("Decoding: " + read_line)
                     temp_return_string = B64.B64FromSingle(read_line)
-                    #print("position found: " + str(temp_return_string))
-                    self.inkjet_virtual_pos = float(temp_return_string)
-                    self.inkjet_virtual_pos /= 1000.0 #get millimeters
-                    #print(self.inkjet_virtual_pos)
+                    self.inkjet_virtual_pos = float(temp_return_string) / 1000.0
+                                #print(self.inkjet_virtual_pos)
                 elif (read_line.startswith('BWL:')):
                     #print("getting buffer write left")
                     read_line = read_line.partition(':') #split at :
@@ -202,7 +197,7 @@ class HP45(serial.Serial):
                     read_line = read_line[2] #get end
                     temp_return_string = B64.B64FromSingle(read_line)
                     self.inkjet_readleft = int(temp_return_string)
-                    
+
                 elif (read_line.startswith('THD:')): 
                     #print("decoding test results")
                     read_line = read_line.partition(':') #split at :
@@ -231,23 +226,22 @@ class HP45(serial.Serial):
                     #print(temp_return_string)
                     self.inkjet_warning = int(temp_return_string) #write to error variable
                 else: #if it was no known line, print it to the commandline 
-                    print("HP45 unknown message: " + str(read_line))
-                    
-        
-            #is ok state is 1, and line buffered, send new line
-            if (self.ok_state == 1):
-                if (self.send_get_status == 1): 
+                    print(f"HP45 unknown message: {str(read_line)}")
+                                    
+
+            if (self.send_get_status == 1):
+                if (self.ok_state == 1): 
                     #print("sending status")
                     self.ok_state = 0 #set ok state to 0
                     self.SerialWriteRaw(self.send_status_buffer + "\r",0) #send status request
                     self.send_get_status = 0 #set get status to 0
                     #print("Getting status")
-                elif (self.BufferLeft() > 0): #if there are lines left to print
-                    if (self.inkjet_writeleft > 50): #only send if space left in hp45 buffer
-                        #print(self.BufferLeft())
-                        self.ok_state = 0 #set ok state to 0
-                        self.BufferNext() #print next line in buffer to serial            
-                        self.inkjet_writeleft -= 1 #subtract 1 from line left (estimate)
+            elif (self.BufferLeft() > 0):
+                if (self.ok_state == 1) and (self.inkjet_writeleft > 50):
+                    #print(self.BufferLeft())
+                    self.ok_state = 0 #set ok state to 0
+                    self.BufferNext() #print next line in buffer to serial            
+                    self.inkjet_writeleft -= 1 #subtract 1 from line left (estimate)
     
     def SerialWriteRaw(self, input_string, temp_priority):
         """prints a line to the HP45 (no checks)
@@ -284,25 +278,25 @@ class HP45(serial.Serial):
         time.sleep(5) #initial wait to get system time to start
         while not self._stop_event.is_set(): #function loops through positions and temps more often than warnings and errors
             time.sleep(0.1) #wait for 0.2 seconds
-            if (self.status_state == 0 or self.status_state == 6): #get temp
+            if self.status_state in [0, 6]: #get temp
                 self.send_status_buffer = "GTP" #get temperature
                 #print("Ask for temp from HP45")
-            if (self.status_state == 1 or self.status_state == 7): #get pos
+            if self.status_state in [1, 7]: #get pos
                 self.send_status_buffer = "GEP" #Get encoder position
                 #print("Ask for pos from HP45")
-            if (self.status_state == 2 or self.status_state == 8): #get write left
+            if self.status_state in [2, 8]: #get write left
                 self.send_status_buffer = "BWL" #Get write left
                 #print("Ask for WL from HP45")
-            if (self.status_state == 3 or self.status_state == 9): #get read left
+            if self.status_state in [3, 9]: #get read left
                 self.send_status_buffer = "BRL" #Get read left
                 #print("Ask for RL from HP45")
-            if (self.status_state == 4 or self.status_state == 10): #get pos
+            if self.status_state in [4, 10]: #get pos
                 self.send_status_buffer = "GVP" #Get virtual position
                 #print("Ask for pos from HP45")
-            if (self.status_state == 5): #warnings
-                self.send_status_buffer = "GWAR" #Get warnings
-            if (self.status_state == 11): #errors
+            if self.status_state == 11:
                 self.send_status_buffer = "GERR" #Get errors
+            elif self.status_state == 5:
+                self.send_status_buffer = "GWAR" #Get warnings
             self.send_get_status = 1
             self.status_state += 1
             if (self.status_state > 11): #reset state
@@ -325,16 +319,16 @@ class HP45(serial.Serial):
     def Preheat(self, temp_pulses):
         """preheats the printhead for the given amount of pulses"""
         if (self.connection_state == 1): #check if connected before sending
-            temp_send_pulses = "" 
+            temp_send_pulses = ""
             temp_send_pulses = B64.B64ToSingle(temp_pulses)
-            self.SerialWriteBufferRaw("PHT " + temp_send_pulses) #send preheat command
+            self.SerialWriteBufferRaw(f"PHT {temp_send_pulses}")
             
     def Prime(self, temp_pulses):
         """preheats the printhead for the given amount of pulses"""
         if (self.connection_state == 1): #check if connected before sending
-            temp_send_pulses = "" 
+            temp_send_pulses = ""
             temp_send_pulses = B64.B64ToSingle(temp_pulses)
-            self.SerialWriteBufferRaw("PRM " + temp_send_pulses) #send preheat command
+            self.SerialWriteBufferRaw(f"PRM {temp_send_pulses}")
     
     def SetPrintMode(self, temp_mode):
         """Sets the printhead to the given mode, 0 = encoder mode, 1 = virtual velocity mode"""
@@ -366,30 +360,30 @@ class HP45(serial.Serial):
     def SetPosition(self, temp_position):
         """Takes the input position in microns and sends it to the printhead"""
         if (self.connection_state == 1): #check if connected before sending
-            temp_send_pos = "" 
+            temp_send_pos = ""
             temp_send_pos = B64.B64ToSingle(temp_position)
-            self.SerialWriteBufferRaw("SEP " + temp_send_pos) #send preheat command
+            self.SerialWriteBufferRaw(f"SEP {temp_send_pos}")
     
     def SetEncoderPPI(self, temp_ppi):
         """Takes the LPI in int, and writes it to the printhead"""
         if (self.connection_state == 1): #check if connected before sending
-            temp_send_pos = "" 
+            temp_send_pos = ""
             temp_send_pos = B64.B64ToSingle(temp_ppi)
-            self.SerialWriteBufferRaw("SER " + temp_send_pos) #send set encoder command
+            self.SerialWriteBufferRaw(f"SER {temp_send_pos}")
     
     def SetVirtualVelocity(self, temp_velocity):
         """Takes the virtual velocity and sends it to the printhead"""
         if (self.connection_state == 1): #check if connected before sending
-            temp_send_vel = "" 
+            temp_send_vel = ""
             temp_send_vel = B64.B64ToSingle(temp_velocity)
-            self.SerialWriteBufferRaw("SVV " + temp_send_vel) #send virtual velocity
+            self.SerialWriteBufferRaw(f"SVV {temp_send_vel}")
         
     def SetTriggerPosition(self, temp_position):
         """takes a position in millimeters and sets this as the trigger position"""
         if (self.connection_state == 1): #check if connected before sending
-            temp_send_pos = "" 
+            temp_send_pos = ""
             temp_send_pos = B64.B64ToSingle(temp_position)
-            self.SerialWriteBufferRaw("SVR " + temp_send_pos) #send trigger reset position
+            self.SerialWriteBufferRaw(f"SVR {temp_send_pos}")
         
     def SerialTrigger(self):
         """Sends a virtual trigger signal to the printhead"""
@@ -403,8 +397,7 @@ class HP45(serial.Serial):
     
     def SetPinTriggerMode(self, temp_pin, temp_mode):
         """Sets the given pin to the given mode"""
-        temp_string = "STM"
-        temp_string += str(temp_pin)
+        temp_string = f"STM{str(temp_pin)}"
         temp_string += " "
         temp_string += B64.B64ToSingle(temp_mode)
         self.SerialWriteBufferRaw(temp_string) #send pinmode command
@@ -412,14 +405,13 @@ class HP45(serial.Serial):
         
     def SetPinTriggerResistor(self, temp_pin, temp_res):
         """Sets the given pin have a given reistor type"""
-        temp_string = "STR"
-        temp_string += str(temp_pin)
+        temp_string = f"STR{str(temp_pin)}"
         temp_string += " "
-        if (temp_res == 0):
+        if temp_res == 0:
             temp_string += "A"
-        if (temp_res == 1):
+        elif temp_res == 1:
             temp_string += "C"
-        if (temp_res == 2):
+        elif temp_res == 2:
             temp_string += "D"
         self.SerialWriteBufferRaw(temp_string) #send pinmode command
         #print(temp_string)
@@ -428,26 +420,26 @@ class HP45(serial.Serial):
     def SetDPI(self, temp_dpi):
         """sends the DPI to the printhead"""
         if (self.connection_state == 1): #check if connected before sending
-            temp_send_dpi = "" 
+            temp_send_dpi = ""
             temp_send_dpi = B64.B64ToSingle(temp_dpi)
             self.inkjet_dpi = int(temp_dpi) #write to variable
-            self.SerialWriteBufferRaw("SDP " + str(temp_send_dpi)) #send dpi command
+            self.SerialWriteBufferRaw(f"SDP {str(temp_send_dpi)}")
     
     def SetDensity(self, temp_density):
         """Sends the density in percent points to the printhead"""
         if (self.connection_state == 1): #check if connected before sending
-            temp_send_density = "" 
+            temp_send_density = ""
             temp_send_density = B64.B64ToSingle(temp_density)
             self.inkjet_density = int(temp_density) #write to variable
-            self.SerialWriteBufferRaw("SDN " + str(temp_send_density)) #send density command
+            self.SerialWriteBufferRaw(f"SDN {str(temp_send_density)}")
     
     def BufferMode(self, temp_mode):
         if (self.connection_state == 1): #check if connected before sending
-            self.SerialWriteBufferRaw("BMOD " + str(B64.B64ToSingle(temp_mode))) #send buffer mode
+            self.SerialWriteBufferRaw(f"BMOD {str(B64.B64ToSingle(temp_mode))}")
     
     def SetSideMode(self, temp_mode):
         if (self.connection_state == 1): #check if connected before sending
-            self.SerialWriteBufferRaw("SSID " + str(B64.B64ToSingle(temp_mode))) #send buffer mode
+            self.SerialWriteBufferRaw(f"SSID {str(B64.B64ToSingle(temp_mode))}")
     
     def ClearBuffer(self):
         """Completely clears the buffer"""
@@ -469,12 +461,12 @@ class HP45(serial.Serial):
         #convert position to B64
         temp_pos_b64 = B64.B64ToSingle(temp_position)
         #print("Converting position: " + str(temp_position) + " to: " + str(temp_pos_b64))
-        
+
         #convert inkjet line to B64
         temp_inkjet_b64 = B64.B64ToArray(temp_inkjet_line)
         #print("Converting position: " + str(temp_inkjet_line))
         #print(" to: " + str(temp_inkjet_b64))
-        
+
         #convert turn this data into an inkjet command and add to buffer
-        self.SerialWriteBufferRaw("SBR " + str(temp_pos_b64) + " " + str(temp_inkjet_b64))
+        self.SerialWriteBufferRaw(f"SBR {str(temp_pos_b64)} {str(temp_inkjet_b64)}")
         #print("SBR " + str(temp_pos_b64) + " " + str(temp_inkjet_b64) + "\r")

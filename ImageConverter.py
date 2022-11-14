@@ -95,8 +95,7 @@ class ImageConverter():
 
             if (self.file_type == ImageType.VECTOR): #attempt opening vector file
                 try: #try opening file
-                    with open(self.file_path) as file_object:
-                        self.vector_file = file_object.read()
+                    self.vector_file = Path(self.file_path).read_text()
                     temp_success = 1 #set succesful,
                 except:
                     nothing = 0
@@ -149,8 +148,8 @@ class ImageConverter():
         self.output_image = QPixmap(self.image_array_width, self.image_array_height)
         self.temp_image = QImage(self.output_image)
         self.temp_color = QColor()
-        for w in range(0,self.image_array_width):
-            for h in range(0,self.image_array_height):
+        for w in range(self.image_array_width):
+            for h in range(self.image_array_height):
                 self.pixel_color = self.conversion_image.pixelColor(w,h)
                 self.qred = self.pixel_color.red()
                 self.qgreen = self.pixel_color.green()
@@ -164,8 +163,8 @@ class ImageConverter():
         self.output_image = QPixmap(self.image_array_width, self.image_array_height)
         self.temp_image = QImage(self.output_image)
         self.temp_color = QColor()
-        for w in range(0,self.image_array_width):
-            for h in range(0,self.image_array_height):
+        for w in range(self.image_array_width):
+            for h in range(self.image_array_height):
                 self.pixel_color = self.conversion_image.pixelColor(w,h)
                 self.alpha = self.pixel_color.alpha()
                 self.temp_color.setRgb(self.alpha,self.alpha,self.alpha)
@@ -212,7 +211,7 @@ class ImageConverter():
                     #print("layer data found")
                     temp_decode = L.partition('  <g ') #partition the svg header away
                     temp_decode = temp_decode[2] #set remainder as new string
-                    while(True):
+                    while True:
                         temp_decode = temp_decode.partition('"') #get next bit of data
                         #print(temp_decode)
                         #check exit requirements
@@ -229,10 +228,9 @@ class ImageConverter():
                         if (temp_decode[0].lstrip() == 'slic3r:z='): #get layer height
                             #print("Getting layer height")
                             temp_decode = temp_decode[2].partition('"')
-                            temp_layer_height = float(temp_decode[0])
-                            temp_layer_height *= 1000000.0 #get mm from whatever the hell they are using (it seems km, WHY!)
+                            temp_layer_height = float(temp_decode[0]) * 1000000.0
                             self.svg_layer_height.append(temp_layer_height)
-                            #print(temp_layer_height)
+                                                #print(temp_layer_height)
 
                         #set to read next part
                         temp_decode = temp_decode[2]
@@ -253,8 +251,11 @@ class ImageConverter():
                 temp_last_height = float(self.svg_layer_height[L]) #make history
             self.svg_average_layer_thickness /= self.svg_layers
 
-            print("Image size: " + str(self.image_array_width) + "," + str(self.image_array_height))
-            print("Layers = " + str(temp_layer_counter))
+            print(
+                f"Image size: {str(self.image_array_width)},{str(self.image_array_height)}"
+            )
+
+            print(f"Layers = {str(temp_layer_counter)}")
             print(f'Layer height: {self.svg_average_layer_thickness:.2f}')
             #print(self.svg_layer_names)
             #print(self.svg_layer_height)
@@ -345,7 +346,7 @@ class ImageConverter():
         #move from point to point. Wherever the points intersect with the array, frip bit from 1 to 0 or 0 to 1
 
         #15,35 10,35 10,25 5,25 5,35 0,35 0,20 15,20 #normal output
-        temp_input = temp_input + " " #add space at end for final conversion
+        temp_input = f"{temp_input} "
         temp_x = []
         temp_y = []
         temp_dpi_multiplier = 25.4 / self.dpi  #amount of mm per pixel
@@ -378,15 +379,15 @@ class ImageConverter():
                 y_start = temp_y[pos]
                 y_end = temp_y[pos - 1]
 
-            #X positions are chosen to guarantee the x line is within bounds
-            #later checks exclude values that are impossible
-            x_pixel_start = int(x_start / temp_dpi_multiplier)
             x_pixel_end = int(x_end / temp_dpi_multiplier) + 1
 
             #loop through all pixels, look for intersections
             #print("From X" +str(x_start) + " to " + str(x_end))
             #print("From X" +str(x_pixel_start) + " to " + str(x_pixel_end))
             if (x_start != x_end): #check if x are not the same
+                #X positions are chosen to guarantee the x line is within bounds
+                #later checks exclude values that are impossible
+                x_pixel_start = int(x_start / temp_dpi_multiplier)
                 for x in range(x_pixel_start, x_pixel_end):
                     temp_x_pos = float(x * temp_dpi_multiplier) #get actual x_pos for this value
                     if (temp_x_pos >= x_start and temp_x_pos <= x_end): #if x is in bound of the line
@@ -423,12 +424,8 @@ class ImageConverter():
         for x in range(self.image_array_height):
             temp_toggle_state = 0 #whether the printhead is 1 or 0
             for y in range(self.image_array_width):
-                if (self.image_array[x][y] != 0): #if pixel is high
-                    if (temp_toggle_state == 1): #flip toggle state
-                        temp_toggle_state = 0
-                    else:
-                        temp_toggle_state = 1
-
+                if (self.image_array[x][y] != 0): #flip toggle state
+                    temp_toggle_state = 0 if (temp_toggle_state == 1) else 1
                 self.image_array[x][y] = temp_toggle_state #write toggle state to pixel
 
 

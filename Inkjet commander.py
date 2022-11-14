@@ -41,44 +41,44 @@ import serial
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()        
-        
+
         Form, Window = uic.loadUiType("Inkjet commander.ui")
-        
+
         self.ui = Window()
         self.form = Form()
         self.form.setupUi(self.ui)
         self.ui.show()
-                
-        
+
+
         self.inkjet = HP45()
         self.imageconverter = ImageConverter()
-        
+
         self.printing_state = 0 #whether the printer is printing
         self.printing_abort_flag = 0
         self.printing_pause_flag = 0
-        
+
         self.image_x_size = 0 #pixel dimensions of the to be printed image
         self.image_y_size = 0
         self.inkjet_overlap = 1 #overlap of the to be printed image
-        
+
         self.RefreshPorts() #get com ports for the buttons
-        
+
         self.error_counter = 0
 
-        
+
         self.form.inkjet_refresh.clicked.connect(self.RefreshPorts)
-        
-        
+
+
         #inkjet connect button
         self.inkjet_connection_state = 0 #connected state of inkjet
         self.form.inkjet_connect.clicked.connect(self.InkjetConnect)
         #self.form.inkjet_set_port.returnPressed.connect(self.InkjetConnect)
         #self.form.inkjet_refresh.clicked.connect(self.SetStatus)
-        
+
         #inkjet send command button
         #self.form.inkjet_send_line.clicked.connect(self.InkjetSendCommand)
         #self.form.inkjet_write_line.returnPressed.connect(self.InkjetSendCommand)
-        
+
         #inkjet function buttons
         self.form.inkjet_preheat.clicked.connect(self.InkjetPreheat)
         self.form.inkjet_prime.clicked.connect(self.InkjetPrime)
@@ -95,12 +95,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.form.overlap_combo.currentIndexChanged.connect(self.SetOverlap)
         self.form.serial_send_button.clicked.connect(self.InkjetSendCommand)
         self.form.serial_send_line.returnPressed.connect(self.InkjetSendCommand)
-        
+
         #print radio mode buttons 
         self.form.mode_radio_encoder.toggled.connect(self.InkjetSetMode)
         self.form.mode_radio_velocity.toggled.connect(self.InkjetSetMode)
         self.printing_mode = 0 #defaults to encoder mode
-        
+
         #position configuration
         self.form.encoder_position_set.clicked.connect(self.InkjetSetPosition)
         self.form.encoder_position.returnPressed.connect(self.InkjetSetPosition)
@@ -108,7 +108,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.form.encoder_ppi.returnPressed.connect(self.InkjetSetPPI)
         self.form.virtual_velocity_set.clicked.connect(self.InkjetVirtualVelocity)
         self.form.virtual_velocity.returnPressed.connect(self.InkjetVirtualVelocity)
-        
+
         #trigger modes
         self.form.trigger_set_mode.clicked.connect(self.InkjetTriggerMode)
         self.form.virtual_enable.clicked.connect(self.inkjet.VirtualEnable)
@@ -117,7 +117,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.form.trigger_reset_position.returnPressed.connect(self.InkjetSetTriggerPosition)
         self.form.virtual_trigger.clicked.connect(self.inkjet.SerialTrigger)
         self.form.virtual_stop.clicked.connect(self.inkjet.SerialStop)
-        
+
         #file buttons
         self.file_loaded = 0
         self.form.file_open_button.clicked.connect(self.OpenFile)
@@ -133,7 +133,7 @@ class MainWindow(QtWidgets.QMainWindow):
             On unsupported or unknown platforms
         """
         if sys.platform.startswith('win'):
-            ports = ['COM%s' % (i + 1) for i in range(256)]
+            ports = [f'COM{i + 1}' for i in range(256)]
         elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
             # this excludes your current terminal "/dev/tty"
             ports = glob.glob('/dev/tty[A-Za-z]*')
@@ -151,35 +151,36 @@ class MainWindow(QtWidgets.QMainWindow):
             except (OSError, serial.SerialException):
                 pass
         #print(result)
-        
+
         #update the com ports for motion and inkjet        
         self.form.inkjet_set_port.clear()
         self.form.inkjet_set_port.addItems(result)
     
     def InkjetConnect(self):
         """Gets the inkjet serial port and attempt to connect to it"""
-        if (self.printing_state == 0): #only act on the button if the printer is not printing
-            if (self.inkjet_connection_state == 0): #get connection state, if 0 (not connected)
-                #print("Attempting connection with HP45")
-                temp_port = str(self.form.inkjet_set_port.currentText()) #get text
-                temp_succes = self.inkjet.Connect(temp_port) #attempt to connect
-                if (temp_succes == 1): #on success, 
-                    self.form.inkjet_connect.setText("Disconnect") #rewrite button text
-                    self.inkjet_connection_state = 1 #set  state
-                    #self.form.inkjet_set_port.clear()
-                    #start a thread that will update the serial in and output for HP45
-                    self._inkjet_stop_event = threading.Event()
-                    self.inkjet_update_thread = threading.Thread(target=self.InkjetUpdate)
-                    self.inkjet_update_thread.start()
-                    
-                else:
-                    print("Connection with HP failed")
-            else: #on state 1
-                #print("disconnecting from HP45")
-                self.inkjet.Disconnect() #disconnect
-                self.inkjet_connection_state = 0 #set state to disconnected
-                self.form.inkjet_connect.setText("Connect") #rewrite button
-                self._inkjet_stop_event.set() #close the HP45 serial thread
+        if self.printing_state != 0:
+            return
+        if (self.inkjet_connection_state == 0): #get connection state, if 0 (not connected)
+            #print("Attempting connection with HP45")
+            temp_port = str(self.form.inkjet_set_port.currentText()) #get text
+            temp_succes = self.inkjet.Connect(temp_port) #attempt to connect
+            if (temp_succes == 1): #on success, 
+                self.form.inkjet_connect.setText("Disconnect") #rewrite button text
+                self.inkjet_connection_state = 1 #set  state
+                #self.form.inkjet_set_port.clear()
+                #start a thread that will update the serial in and output for HP45
+                self._inkjet_stop_event = threading.Event()
+                self.inkjet_update_thread = threading.Thread(target=self.InkjetUpdate)
+                self.inkjet_update_thread.start()
+
+            else:
+                print("Connection with HP failed")
+        else: #on state 1
+            #print("disconnecting from HP45")
+            self.inkjet.Disconnect() #disconnect
+            self.inkjet_connection_state = 0 #set state to disconnected
+            self.form.inkjet_connect.setText("Connect") #rewrite button
+            self._inkjet_stop_event.set() #close the HP45 serial thread
             
     def InkjetUpdate(self):
         """updates serial in and output for the inkjet window"""
@@ -194,7 +195,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.form.buffer_read_left_label.setText(f'{self.inkjet.inkjet_readleft:.0f}')
             self.form.buffer_write_left_label.setText(f'{self.inkjet.inkjet_writeleft:.0f}')
             self.form.buffer_send_left_label.setText(f'{self.inkjet.BufferLeft():.0f}') #update send left
-            
+
             self.status_multiplier_counter += 1
             if (self.status_multiplier_counter > 5):
                 self.status_multiplier_counter = 0
@@ -208,7 +209,7 @@ class MainWindow(QtWidgets.QMainWindow):
                             if (self.error_counter > len(self.inkjet.inkjet_error_message)):
                                 self.error_counter = 0
                             break
-                            
+
                         self.error_counter += 1
                         if (self.error_counter > len(self.inkjet.inkjet_error_message)):
                             self.error_counter = 0
@@ -223,25 +224,27 @@ class MainWindow(QtWidgets.QMainWindow):
                             if (self.error_counter > len(self.inkjet.inkjet_warning_message)):
                                 self.error_counter = 0
                             break
-                            
+
                         self.error_counter += 1
                         if (self.error_counter > len(self.inkjet.inkjet_warning_message)):
                             self.error_counter = 0
                             break                    
                 else:
                     self.form.error_message_value.setText("None") #display no errors message
-                
-            
+
+
             #update inkjet test state
-            self.form.inkjet_test_state.setText("Nozzles: " + str(self.inkjet.inkjet_working_nozzles) + "/" + str(self.inkjet.inkjet_total_nozzles))
-            
+            self.form.inkjet_test_state.setText(
+                f"Nozzles: {str(self.inkjet.inkjet_working_nozzles)}/{str(self.inkjet.inkjet_total_nozzles)}"
+            )
+
+
             time.sleep(0.2)
     
     def InkjetSendCommand(self):
         """Gets the command from the textedit and prints it to Inkjet"""
         if (self.inkjet_connection_state == 1):
-            temp_command = str(self.form.serial_send_line.text())#get line
-            temp_command += "\r" #add end of line
+            temp_command = str(self.form.serial_send_line.text()) + "\r"
             self.inkjet.SerialWriteBufferRaw(temp_command) #write to inkjet
             self.form.serial_send_line.clear() #clear line
 
@@ -259,18 +262,19 @@ class MainWindow(QtWidgets.QMainWindow):
             
     def InkjetSetPosition(self):
         """Gets the position from the textbox and converts it and sends it to HP45"""
-        if (self.inkjet_connection_state == 1 and self.printing_state == 0): #only act on the button if the printer is not printing and connected
-            temp_pos = self.form.encoder_position.text() #set pos to variable
-            try:
-                temp_pos = float(temp_pos)
-                print("Setting position to: " + str(temp_pos))
-                temp_pos *= 1000.0
-                temp_pos = int(temp_pos) #cast to intergers
-            except:
-                print("Value could not be converted")
-                return
-            self.form.encoder_position.setText("")
-            self.inkjet.SetPosition(temp_pos) #set position
+        if self.inkjet_connection_state != 1 or self.printing_state != 0:
+            return
+        temp_pos = self.form.encoder_position.text() #set pos to variable
+        try:
+            temp_pos = float(temp_pos)
+            print(f"Setting position to: {temp_pos}")
+            temp_pos *= 1000.0
+            temp_pos = int(temp_pos) #cast to intergers
+        except:
+            print("Value could not be converted")
+            return
+        self.form.encoder_position.setText("")
+        self.inkjet.SetPosition(temp_pos) #set position
     
     def InkjetSetPPI(self):
         """Gets the position from the textbox and converts it and sends it to HP45"""
@@ -278,7 +282,7 @@ class MainWindow(QtWidgets.QMainWindow):
             temp_pos = self.form.encoder_ppi.text() #set pos to variable
             try:
                 temp_pos = int(temp_pos)
-                print("Setting PPI to: " + str(temp_pos))
+                print(f"Setting PPI to: {temp_pos}")
             except:
                 print("Value could not be converted")
                 return
@@ -291,7 +295,7 @@ class MainWindow(QtWidgets.QMainWindow):
             temp_vel = self.form.virtual_velocity.text() #set pos to variable
             try:
                 temp_vel = float(temp_vel)
-                print("Setting virtual velocity to: " + str(temp_vel))
+                print(f"Setting virtual velocity to: {temp_vel}")
                 #temp_vel *= 1000.0
                 temp_vel = int(temp_vel) #cast to intergers
             except:
@@ -302,18 +306,19 @@ class MainWindow(QtWidgets.QMainWindow):
         
     def InkjetSetTriggerPosition(self):
         """Set the trigger position, the position the printhead moves to when the trigger is given"""
-        if (self.inkjet_connection_state == 1 and self.printing_state == 0): #only act on the button if the printer is not printing and connected
-            temp_vel = self.form.trigger_reset_position.text() #set pos to variable
-            try:
-                temp_vel = float(temp_vel)
-                print("Setting trigger position to: " + str(temp_vel))
-                temp_vel *= 1000.0
-                temp_vel = int(temp_vel) #cast to intergers
-            except:
-                print("Value could not be converted")
-                return
-            #self.form.trigger_reset_position.setText("")
-            self.inkjet.SetTriggerPosition(temp_vel) #set position
+        if self.inkjet_connection_state != 1 or self.printing_state != 0:
+            return
+        temp_vel = self.form.trigger_reset_position.text() #set pos to variable
+        try:
+            temp_vel = float(temp_vel)
+            print(f"Setting trigger position to: {temp_vel}")
+            temp_vel *= 1000.0
+            temp_vel = int(temp_vel) #cast to intergers
+        except:
+            print("Value could not be converted")
+            return
+        #self.form.trigger_reset_position.setText("")
+        self.inkjet.SetTriggerPosition(temp_vel) #set position
     
     def InkjetTriggerMode(self):
         """Take the pin and the mode and write these to the printhead"""
@@ -345,12 +350,12 @@ class MainWindow(QtWidgets.QMainWindow):
         #set overlap (read "overlap_combo")
         temp_overlap = self.form.overlap_combo.currentIndex() #get index
         temp_overlap += 1 #add one to make it 1-4
-        print("overlap set to: " + str(temp_overlap))
+        print(f"overlap set to: {temp_overlap}")
         self.inkjet_overlap = temp_overlap
-    
+
         #reset density to printhead
         self.InkjetSetDensity()
-        
+
         #alter required sweeps
         self.SetSweepData()
         
@@ -381,49 +386,48 @@ class MainWindow(QtWidgets.QMainWindow):
             print ("Unable to set dpi")
             nothing = 0
 
-        if (temp_success == 1): #if conversion was successful
-            if (self.printing_state == 0): #only set DPI when not printing
-                print("DPI to set: " + str(temp_dpi_val))
-                if (self.inkjet_connection_state == 1): #only write to printhead when connected
-                    self.inkjet.SetDPI(temp_dpi_val) #write to inkjet
-                self.imageconverter.SetDPI(temp_dpi_val) #write to image converter
-                if (self.file_loaded != 0): #if any file is loaded
-                    print("resising image")
-                    self.OpenFile(self.input_file_name[0])
+        if (temp_success == 1) and (self.printing_state == 0):
+            print(f"DPI to set: {temp_dpi_val}")
+            if (self.inkjet_connection_state == 1): #only write to printhead when connected
+                self.inkjet.SetDPI(temp_dpi_val) #write to inkjet
+            self.imageconverter.SetDPI(temp_dpi_val) #write to image converter
+            if (self.file_loaded != 0): #if any file is loaded
+                print("resising image")
+                self.OpenFile(self.input_file_name[0])
                 
     def InkjetSetDensity(self):
         """Writes the Density to the printhead"""
-        if (self.inkjet_connection_state == 1):
-            temp_density = str(self.form.inkjet_density.value()) #get text #get density
-            temp_density_val = 0
-            temp_success = 0
-            try:
-                temp_density_val = int(temp_density)
-                temp_success = 1
-            except:
-                #print ("Unable to convert to dpi")
-                nothing = 0
+        if self.inkjet_connection_state != 1:
+            return
+        temp_density = str(self.form.inkjet_density.value()) #get text #get density
+        temp_density_val = 0
+        temp_success = 0
+        try:
+            temp_density_val = int(temp_density)
+            temp_success = 1
+        except:
+            #print ("Unable to convert to dpi")
+            nothing = 0
 
-            if (temp_success == 1): #if conversion was successful
+        if (temp_success == 1): #if conversion was successful
                 #print("Density to set: " + str(temp_density_val))
-                temp_density_val = temp_density_val * 10 #multiply by 10 because interface handles this value from 1-100
-                temp_density_val /= self.inkjet_overlap #divide by overlap because of possible multiple sweeps per pixel
-                temp_density_val = int(temp_density_val) #cast to integer
-                print("Setting density to: " + str(temp_density_val))
-                
-                self.inkjet.SetDensity(temp_density_val) #write to inkjet
+            temp_density_val *= 10
+            temp_density_val /= self.inkjet_overlap #divide by overlap because of possible multiple sweeps per pixel
+            temp_density_val = int(temp_density_val) #cast to integer
+            print(f"Setting density to: {temp_density_val}")
+
+            self.inkjet.SetDensity(temp_density_val) #write to inkjet
                 
     def InkjetSetDensityText(self):
         """Rewrited density on GUI"""
         temp_density = str(self.form.inkjet_density.value()) #get text #get density
-        temp_density = int(temp_density)
-        temp_density *= 10
-        self.form.inket_density_value.setText('Density: ' + str(temp_density) + '%')
+        temp_density = int(temp_density) * 10
+        self.form.inket_density_value.setText(f'Density: {temp_density}%')
                
     def UpdateThresholdSliderValue(self):
         """Updates the value next to the threshold slider"""
         temp_threshold = self.form.threshold_slider.value()
-        self.form.threshold_slider_value.setText("Threshold: " + str(temp_threshold))
+        self.form.threshold_slider_value.setText(f"Threshold: {str(temp_threshold)}")
         
     def OpenFile(self, temp_input_file = ""):
         """Opens a file dialog, takes the filepath, and passes it to the image converter"""
@@ -445,7 +449,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def UpdateLayer(self):
         if (self.imageconverter.file_type == 2 and self.printing_state == 0): #if file is svg
             temp_layer = self.form.layer_slider.value()
-            self.form.layer_slider_value.setText("Layer: " + str(temp_layer))
+            self.form.layer_slider_value.setText(f"Layer: {str(temp_layer)}")
             self.imageconverter.SVGLayerToArray(temp_layer)
             self.RenderOutput()
             
@@ -484,17 +488,20 @@ class MainWindow(QtWidgets.QMainWindow):
         temp_required_sweeps = self.imageconverter.GetDPI() #get printing DPI
         temp_required_sweeps /= 2 #divide by 2 to get the sweep size (300 nozzles at 600DPI is half de DPI)
         temp_required_sweeps /= self.inkjet_overlap #divide by the overlap
-        
+
         temp_required_sweeps = int(self.image_x_size / temp_required_sweeps) + (self.image_x_size % temp_required_sweeps > 0) #get the rounded up number of sweeps
-        
+
         #add optional overlap to the number of sweeps
         temp_lead_ins = self.inkjet_overlap - 1 #if there is overlap, lead-in sweeps need to be added
         temp_required_sweeps += temp_lead_ins #add lead ins and outs to the required sweeps
-        
+
         #print("Image size: " + str(self.image_y_size) + "x" + str(self.image_x_size))
         #print("Sweeps: " + str(temp_required_sweeps))
-        
-        self.form.image_dimensions.setText(str(self.image_y_size) + " x " + str(self.image_x_size))
+
+        self.form.image_dimensions.setText(
+            f"{str(self.image_y_size)} x {str(self.image_x_size)}"
+        )
+
         self.form.image_required_sweeps.setText(str(temp_required_sweeps))
         
     def RenderAlpha(self):
@@ -531,12 +538,12 @@ class MainWindow(QtWidgets.QMainWindow):
             try:
                 temp_pos = self.form.image_start_position.text() #set pos to variable
                 temp_pos = float(temp_pos)
-                print("Starting position is: " + str(temp_pos))
+                print(f"Starting position is: {temp_pos}")
                 temp_pos = int(temp_pos) #cast to intergers
             except:
                 print("Value could not be converted, defaulting to 10mm")
                 temp_pos = 10.0
-            
+
             #send the print command
             self.SendArray(temp_pos)
     
